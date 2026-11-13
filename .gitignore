@@ -1,3 +1,5 @@
 .venv/
 .vscode/
 page_images/
+__pycache__/
+.env

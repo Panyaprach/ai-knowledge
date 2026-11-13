@@ -1,0 +1,12 @@
+[
+  {"q": "Which table links films and actors?", "expect": ["film_actor"]},
+  {"q": "What does the active column in the customer table mean?", "expect": ["alternative to deleting"]},
+  {"q": "What is the known design problem with stores, staff and rentals?", "expect": ["loop"]},
+  {"q": "Which stored procedure tells me if a film is in stock at a store?", "expect": ["film_in_stock"]},
+  {"q": "How is the film_text table kept in sync with film?", "expect": ["trigger"]},
+  {"q": "Which tables does the payment table refer to?", "expect": ["customer, rental, and staff"]},
+  {"q": "What does the sales_by_store view return?", "expect": ["manager name"]},
+  {"q": "What are the foreign keys of the rental table?", "expect": ["-> inventory.inventory_id"], "needs": "schema"},
+  {"q": "Which tables connect film to category?", "expect": ["film_category"], "needs": "schema"},
+  {"q": "Which tables are shown in the schema diagram figure?", "expect": ["Diagram on page 5"], "needs": "diagram"}
+]
