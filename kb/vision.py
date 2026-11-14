@@ -1,7 +1,8 @@
 """Turn a figure into searchable text using any OpenAI-compatible vision model."""
 import base64, time
 from functools import lru_cache
-from openai import OpenAI, RateLimitError, APIError
+from openai import (OpenAI, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError,
+                    BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError)
 from .config import VLM_BASE_URL, VLM_API_KEY, VLM_MODEL, VLM_DELAY_SEC
 
 PROMPT = """You are reading a figure from database documentation. It may be an ER / EER diagram or a schema overview
@@ -24,6 +25,10 @@ Never invent names. Text extracted from the page (use it to spell names correctl
 If the image contains NO diagram (a logo, chart, or plain text), reply with exactly: NO_DIAGRAM"""
 
 
+class VisionError(RuntimeError):
+    """The vision endpoint rejected the request (wrong model id, bad key, ...). Retrying will not help."""
+
+
 @lru_cache(maxsize=1)
 def _client() -> OpenAI:
     return OpenAI(base_url=VLM_BASE_URL, api_key=VLM_API_KEY, timeout=300)
@@ -43,8 +48,10 @@ def describe_diagram(png: bytes, page_text: str) -> str | None:
             time.sleep(VLM_DELAY_SEC)
             out = (r.choices[0].message.content or "").strip()
             return None if not out or out.startswith("NO_DIAGRAM") else out
-        except (RateLimitError, APIError) as e:
+        except (BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError) as e:
+            raise VisionError(f"{type(e).__name__}: {e}") from None
+        except (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError) as e:
             wait = 2 ** attempt * 3
-            print(f"    VLM error ({type(e).__name__}); retry in {wait}s")
+            print(f"    VLM temporary error ({type(e).__name__}); retry in {wait}s")
             time.sleep(wait)
-    return None
+    raise VisionError("vision model kept failing after 5 attempts")

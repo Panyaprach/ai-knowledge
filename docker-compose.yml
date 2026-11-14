@@ -21,6 +21,13 @@ services:
     # user: sakila / password: p_ssW0rd / database: sakila   (see .env.example)
     # Prefer the official files? use docker-compose.official-mysql.yml (see README)
 
+  adminer:                         # web UI to browse both databases: http://localhost:8080
+    image: adminer
+    ports: ["127.0.0.1:8080:8080"]  # bound to localhost only; never expose this port publicly
+    environment:
+      ADMINER_DEFAULT_SERVER: pgvector
+    depends_on: [pgvector, mysql]
+
   ollama:                          # optional, 100% free local models:  docker compose --profile ollama up -d
     image: ollama/ollama
     profiles: ["ollama"]

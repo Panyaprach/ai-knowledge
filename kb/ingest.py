@@ -5,7 +5,7 @@ from .db import connect
 from .embed import embed
 from .chunking import section_chunks
 from .pdf_parser import parse_pdf
-from .vision import describe_diagram
+from .vision import describe_diagram, VisionError
 from .mysql_schema import build_cards
 
 
@@ -25,9 +25,12 @@ def _store(conn, filename: str, sha: str, pending: list[tuple]) -> None:
 
 def ingest_pdf(path: str, vision: bool = True, force: bool = False) -> None:
     p = pathlib.Path(path)
-    sha = hashlib.sha256(p.read_bytes() + (b"v" if vision else b"t")).hexdigest()
+    raw = p.read_bytes()
+    sha_vision = hashlib.sha256(raw + b"v").hexdigest()
+    sha_text = hashlib.sha256(raw + b"t").hexdigest()
     conn = connect()
-    if not force and conn.execute("SELECT 1 FROM documents WHERE sha256=%s", (sha,)).fetchone():
+    done = sha_vision if vision else sha_text
+    if not force and conn.execute("SELECT 1 FROM documents WHERE sha256=%s", (done,)).fetchone():
         print(f"skip (already ingested): {p.name}")
         return
     title, pages, figures = parse_pdf(str(p), vision=vision)
@@ -35,9 +38,17 @@ def ingest_pdf(path: str, vision: bool = True, force: bool = False) -> None:
                for c in section_chunks(pages, title)]
     page_text = {n: "\n".join(lines) for n, lines in pages}
     os.makedirs(IMAGE_DIR, exist_ok=True)
+    vision_failed = False
     for i, fig in enumerate(figures, start=1):
         print(f"  p.{fig.page}: {fig.source} figure #{i} -> vision model")
-        desc = describe_diagram(fig.png, page_text.get(fig.page, ""))
+        try:
+            desc = describe_diagram(fig.png, page_text.get(fig.page, ""))
+        except VisionError as e:
+            print(f"\n  !! Vision model failed, skipping diagrams (text is still ingested):\n     {e}\n"
+                  "     Fix VLM_MODEL / VLM_API_KEY in .env, check with `python -m kb status --deep`, then re-run\n"
+                  "     `python -m kb ingest pdfs` (it will redo this PDF with diagrams).\n")
+            vision_failed = True
+            break
         if not desc:
             print("    (no diagram found / model unavailable)")
             continue
@@ -49,7 +60,7 @@ def ingest_pdf(path: str, vision: bool = True, force: bool = False) -> None:
     if not pending:
         print(f"nothing extracted from {p.name} (scanned PDF? add OCR)")
         return
-    _store(conn, p.name, sha, pending)
+    _store(conn, p.name, sha_text if (vision_failed or not vision) else sha_vision, pending)
     n_d = sum(1 for c in pending if c[1] == "diagram")
     print(f"ingested {p.name}: {len(pending)} chunks ({n_d} diagram)")
 

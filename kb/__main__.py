@@ -22,7 +22,8 @@ def main():
     ap = argparse.ArgumentParser(prog="kb", description="Sakila knowledge base: PDF + diagram + live schema in pgvector, answered with RAG and text-to-SQL")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init", help="create pgvector extension + tables")
-    sub.add_parser("status", help="check pgvector, MySQL, vision model and LLM")
+    st = sub.add_parser("status", help="check pgvector, MySQL, vision model and LLM")
+    st.add_argument("--deep", action="store_true", help="send one tiny real request to each model and show the provider error")
     s = sub.add_parser("setup", help="init + sync MySQL schema + ingest ./pdfs  (one-shot demo prep)")
     s.add_argument("--no-vision", action="store_true", help="skip the diagram model")
     sub.add_parser("sync-schema", help="store the live MySQL schema as searchable cards")
@@ -42,7 +43,7 @@ def main():
     if args.cmd == "init":
         from .db import init_db; init_db(); print("pgvector ready")
     elif args.cmd == "status":
-        from .status import run; sys.exit(run())
+        from .status import run; sys.exit(run(args.deep))
     elif args.cmd == "setup":
         from .db import init_db
         from .mysql_schema import wait_for_mysql
