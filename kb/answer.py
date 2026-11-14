@@ -80,7 +80,7 @@ def ask(question: str, k: int = RETRIEVE_K, execute: bool = True) -> Answer:
 
     for attempt in range(3):
         try:
-            a.columns, a.rows, a.truncated = run_select(a.sql, MAX_ROWS)
+            a.columns, a.rows, a.truncated, a.sql = run_select(a.sql, MAX_ROWS)
             a.error = None
             break
         except Exception as e:  # UnsafeSQL or MySQL error -> let the model repair it

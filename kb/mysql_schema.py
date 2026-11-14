@@ -1,5 +1,6 @@
 """MySQL access: schema introspection -> 'schema cards', and a guarded read-only query runner."""
 import datetime, decimal, time
+from functools import lru_cache
 import pymysql
 from .config import (MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, MAX_ROWS)
 from .sqlguard import validate
@@ -82,9 +83,22 @@ def _jsonable(v):
     return v
 
 
+@lru_cache(maxsize=1)
+def table_names() -> frozenset:
+    """Tables and views of the configured database: the only names a generated query may reference."""
+    conn = mysql_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s", (MYSQL_DATABASE,))
+            return frozenset(r[0].lower() for r in cur.fetchall())
+    finally:
+        conn.close()
+
+
 def run_select(sql: str, max_rows: int = MAX_ROWS):
-    """Validate, then run inside a READ ONLY session with a 10s server-side time limit."""
-    sql = validate(sql)
+    """Parse-validate (sqlglot), cap LIMIT, then run in a READ ONLY session with a 10s server-side time limit.
+    Returns (columns, rows, truncated, executed_sql). One extra row is requested so truncation can be detected."""
+    sql = validate(sql, allowed_tables=table_names(), max_rows=max_rows + 1, database=MYSQL_DATABASE)
     conn = mysql_conn()
     try:
         with conn.cursor() as cur:
@@ -95,4 +109,4 @@ def run_select(sql: str, max_rows: int = MAX_ROWS):
             rows = cur.fetchmany(max_rows + 1)
     finally:
         conn.close()
-    return columns, [[_jsonable(v) for v in r] for r in rows[:max_rows]], len(rows) > max_rows
+    return columns, [[_jsonable(v) for v in r] for r in rows[:max_rows]], len(rows) > max_rows, sql

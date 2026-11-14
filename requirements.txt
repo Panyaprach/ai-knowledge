@@ -7,3 +7,4 @@ openai>=1.40
 python-dotenv>=1.0
 pillow>=10
 streamlit>=1.36
+sqlglot>=25.0

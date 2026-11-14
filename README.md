@@ -83,9 +83,12 @@ Everything talks to OpenAI-compatible endpoints: Ollama (local, free), Hugging F
 Hosted free tiers have rate limits and change their model lists, so check them; the vision client retries with backoff.
 
 ## Safety of text-to-SQL
-Layered: (1) validator allows one `SELECT`/`WITH` only, blocks writes, comments, `INTO OUTFILE`, `SLEEP`, etc.;
-(2) session forced `READ ONLY` with a 10 s limit; (3) at most 100 rows returned. For anything beyond a demo, also give the
-app a MySQL user that only has `SELECT`.
+Layered, and no longer keyword-based: `kb/sqlguard.py` parses the generated SQL with **sqlglot** (MySQL dialect) and checks the
+syntax tree. It allows one `SELECT` (CTEs and UNION are fine) and rejects any write/DDL node, `SELECT ... INTO`, `FOR UPDATE`,
+`@variables`, dangerous functions (`SLEEP`, `BENCHMARK`, `LOAD_FILE`, ...) and comments. Every table must be a real table of the
+Sakila database, so `information_schema` and `mysql.*` are unreachable. A `LIMIT` is always added and capped, and the SQL that
+runs is regenerated from the tree (shown in the UI). Then the session is forced `READ ONLY` with a 10 s limit. Rejection messages
+list the available tables so the model can repair its query. For anything beyond a demo, also use a MySQL account with only `SELECT`.
 
 ## Known limits
 - Not run end to end in the authoring sandbox (no network/Docker). The chunker was checked against the real Sakila PDF text
