@@ -54,6 +54,17 @@ the schema cards already carry every FK.
 
 CLI equivalents: `python -m kb ask "..."`, `python -m kb search "..."`, `python -m kb ask "..." --no-exec`.
 
+## Browse the data (Adminer)
+`docker compose up -d adminer` then open http://localhost:8080 . Pick the system in the login form:
+
+| | System | Server | Username | Password | Database |
+|---|---|---|---|---|---|
+| vector DB | PostgreSQL | `pgvector` | `rag` | `rag` | `rag` |
+| Sakila | MySQL | `mysql` | `sakila` | `p_ssW0rd` | `sakila` |
+
+Look at `chunks` (columns `kind`, `page`, `content`, `metadata`, `image_path`) and `documents` in pgvector. The `embedding`
+column is a long vector, so select the other columns instead of `*`. Adminer is bound to localhost only; don't expose it.
+
 ## Quality checks
 - `make test` — unit tests (SQL guard, header/footer/TOC cleanup, heading-aware chunking). No services needed.
 - `python -m kb eval` — retrieval hit-rate over `eval/questions.json` (no LLM needed). Edit the file to add your own questions.
