@@ -25,7 +25,7 @@ def _caption(text: str) -> str:
 
 
 def find_figures(page, page_no: int, text: str) -> list[Figure]:
-    import fitz
+    import pymupdf
     page_area = page.rect.width * page.rect.height
     found = []
 
@@ -50,7 +50,7 @@ def find_figures(page, page_no: int, text: str) -> list[Figure]:
         if len(drawings) >= DIAGRAM_MIN_DRAWINGS and hasattr(page, "cluster_drawings"):
             for r in page.cluster_drawings(drawings=drawings):
                 if r.width * r.height >= 0.10 * page_area:
-                    r = fitz.Rect(r) + (-8, -8, 8, 8)
+                    r = pymupdf.Rect(r) + (-8, -8, 8, 8)
                     found.append((r.width * r.height, r & page.rect, 200, "vector"))
     except Exception:
         pass
@@ -61,9 +61,9 @@ def find_figures(page, page_no: int, text: str) -> list[Figure]:
 
 
 def parse_pdf(path: str, vision: bool = True):
-    import fitz
+    import pymupdf
     pages, figures = [], []
-    with fitz.open(path) as doc:
+    with pymupdf.open(path) as doc:
         for i, page in enumerate(doc, start=1):
             text = page.get_text("text")
             pages.append((i, text.splitlines()))
