@@ -12,6 +12,8 @@ def _print_answer(a):
         if len(a.rows) > 20 or a.truncated:
             print(f"... ({len(a.rows)} rows kept)")
     print("\nSteps: " + " -> ".join(a.steps))
+    if a.trace_id:
+        print(f"Decision trail saved as trace #{a.trace_id}:  python -m kb trace {a.trace_id}")
     print("Sources:")
     for h in a.hits:
         tag = h["metadata"].get("table") if h["kind"] == "schema" else f"p.{h['page']}"
@@ -36,6 +38,11 @@ def main():
     a = sub.add_parser("ask", help="retrieve, answer or write+run SQL")
     a.add_argument("question"); a.add_argument("-k", type=int, default=8)
     a.add_argument("--no-exec", action="store_true", help="show generated SQL but do not run it")
+    h = sub.add_parser("history", help="list recent questions and how they were answered")
+    h.add_argument("-n", type=int, default=15)
+    tr = sub.add_parser("trace", help="show the full decision trail (retrieval, prompts, model thinking, SQL tries) of one question")
+    tr.add_argument("id", type=int)
+    tr.add_argument("--full", action="store_true", help="do not shorten prompts")
     e = sub.add_parser("eval", help="retrieval hit-rate on eval/questions.json (no LLM)")
     e.add_argument("-k", type=int, default=8)
     args = ap.parse_args()
@@ -63,6 +70,14 @@ def main():
             print(f"--- {h['filename']} p.{h['page']} [{h['kind']}] score={h['score']:.4f}\n{h['content'][:400]}\n")
     elif args.cmd == "ask":
         from .answer import ask; _print_answer(ask(args.question, args.k, execute=not args.no_exec))
+    elif args.cmd == "history":
+        from .trace import list_traces
+        for r in list_traces(args.n):
+            print(f"#{r['id']:<4} {str(r['created_at'])[:19]}  {r['outcome']:<18} {str(r['total_ms']):>6} ms  {r['question'][:70]}")
+    elif args.cmd == "trace":
+        from .trace import get_trace, format_trace
+        t = get_trace(args.id)
+        print(format_trace(t, args.full) if t else f"no trace #{args.id}")
     elif args.cmd == "eval":
         from .evaluate import run; sys.exit(run(k=args.k))
 

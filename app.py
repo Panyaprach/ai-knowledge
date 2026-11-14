@@ -51,6 +51,8 @@ if st.button("Ask", type="primary") and q.strip():
             st.caption("Result truncated.")
     with st.expander("How it was answered"):
         st.write(" → ".join(a.steps))
+        if a.trace_id:
+            st.caption(f"Full decision trail saved as trace #{a.trace_id}: open the **History** page in the sidebar.")
     st.subheader("Sources")
     for h in a.hits:
         label = h["metadata"].get("table") if h["kind"] == "schema" else f"p.{h['page']}"

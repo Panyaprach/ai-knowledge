@@ -65,6 +65,33 @@ CLI equivalents: `python -m kb ask "..."`, `python -m kb search "..."`, `python 
 Look at `chunks` (columns `kind`, `page`, `content`, `metadata`, `image_path`) and `documents` in pgvector. The `embedding`
 column is a long vector, so select the other columns instead of `*`. Adminer is bound to localhost only; don't expose it.
 
+## Observe it: the decision trail
+Every question is saved in the `query_log` table (one row, ordered `events`) and can be read three ways:
+- **Streamlit:** the **History** page in the sidebar (pick a question; each step is laid out in order).
+- **Terminal:** `python -m kb history` then `python -m kb trace 12` (add `--full` to see complete prompts).
+- **Adminer:** table `query_log`, column `events` (JSON).
+
+What a trail contains, in the order things happen:
+
+| Stage | What it tells you |
+|---|---|
+| `retrieve` | which chunks came back from pgvector (text / diagram / schema), their score, and which were *added via foreign key* instead of found by search |
+| `llm_call` | the exact prompt, the raw reply, **the model's thinking if the provider returned any**, `finish_reason`, token counts, time. Purposes: *route* (docs answer or SQL?), *repair* (after a failed query), *summarise* (turn rows into a sentence) |
+| `decision` | the route taken and why: docs (reply had no ```sql block) or SQL |
+| `sql_attempt` | each try: **rejected by the SQL guard** / **MySQL error** / **ok**, the SQL in, the SQL that actually ran (LIMIT added), a 5-row preview. A failed try's error is what the model sees when it repairs |
+| `error` | an exception that stopped the run (for example the model server being down) |
+
+How "thinking" is captured: it is read from a separate reply field (`reasoning_content`, `reasoning` or `thinking`, the names
+different providers use) and from `<think>...</think>` inside the reply. If the provider returns neither, the page says so.
+It is the model's own account, not proof of how it decided, so use the decision events as the ground truth.
+
+Reading tips:
+- `finish_reason=length` means the reply was cut off by `max_tokens`. Thinking models can spend the whole budget on thinking and
+  return an empty or partial reply; raise the limit in `kb/answer.py` (`_chat(... max_tokens=...)`) if you see it.
+- Two `llm_call`s plus a `sql_attempt` per question is normal for data questions; a docs question has only one `llm_call`.
+- Logging never breaks the app: if saving fails it prints one line and carries on. Set `TRACE_ENABLED=0` to turn it off.
+- The log holds prompts, retrieved text and a 5-row preview of results. Keep the database local.
+
 ## Quality checks
 - `make test` — unit tests (SQL guard, header/footer/TOC cleanup, heading-aware chunking). No services needed.
 - `python -m kb eval` — retrieval hit-rate over `eval/questions.json` (no LLM needed). Edit the file to add your own questions.

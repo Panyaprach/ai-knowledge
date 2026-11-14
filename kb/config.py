@@ -1,7 +1,10 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:  # keeps the pure-Python modules importable in minimal environments
+    pass
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://rag:rag@localhost:5432/rag")
 
@@ -27,3 +30,7 @@ DIAGRAM_MIN_DRAWINGS = int(os.getenv("DIAGRAM_MIN_DRAWINGS", "40"))
 IMAGE_DIR = os.getenv("IMAGE_DIR", "page_images")
 RETRIEVE_K = int(os.getenv("RETRIEVE_K", "8"))
 MAX_ROWS = int(os.getenv("MAX_ROWS", "100"))
+
+# Decision-trail log (see kb/trace.py). Prompts, retrieved text and result rows are stored, so keep the DB local.
+TRACE_ENABLED = os.getenv("TRACE_ENABLED", "1") not in ("0", "false", "False", "")
+TRACE_MAX_CHARS = int(os.getenv("TRACE_MAX_CHARS", "30000"))
