@@ -2,6 +2,7 @@ import re
 from collections import Counter
 from .db import connect
 from .embed import embed
+from .linking import find_named_tables
 
 COLS = ["id", "filename", "page", "kind", "content", "image_path", "metadata", "score"]
 
@@ -56,6 +57,21 @@ def schema_neighbors(hits: list[dict], limit: int = 6) -> list[dict]:
     return [{**dict(zip(COLS, r)), "expanded": True} for r in rows]
 
 
+def named_table_cards(question: str, hits: list[dict], limit: int = 5) -> list[dict]:
+    """If the question names a table (e.g. 'the rental table'), always include that table's schema card.
+    Similarity search can rank documentation prose above the exact card, and the card is what holds the exact keys."""
+    with connect() as conn:
+        names = [r[0] for r in conn.execute(
+            "SELECT DISTINCT metadata->>'table' FROM chunks WHERE kind='schema'").fetchall() if r[0]]
+        have = {h["metadata"].get("table") for h in hits if h["kind"] == "schema"}
+        want = [t for t in find_named_tables(question, names, limit) if t not in have]
+        rows = conn.execute(NEIGHBOR_SQL, (want,)).fetchall() if want else []
+    return [{**dict(zip(COLS, r)), "named": True} for r in rows]
+
+
 def retrieve(question: str, k: int = 8, expand: bool = True) -> list[dict]:
     hits = search(question, k)
-    return hits + schema_neighbors(hits) if expand else hits
+    if not expand:
+        return hits
+    hits = hits + named_table_cards(question, hits)      # 1) tables the question names
+    return hits + schema_neighbors(hits)                  # 2) tables joined to them by foreign key

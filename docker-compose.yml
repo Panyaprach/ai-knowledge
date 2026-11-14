@@ -31,6 +31,8 @@ services:
   ollama:                          # optional, 100% free local models:  docker compose --profile ollama up -d
     image: ollama/ollama
     profiles: ["ollama"]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "16384"
     ports: ["11434:11434"]
     volumes: ["ollama:/root/.ollama"]
 

@@ -38,6 +38,9 @@ def main():
     a = sub.add_parser("ask", help="retrieve, answer or write+run SQL")
     a.add_argument("question"); a.add_argument("-k", type=int, default=8)
     a.add_argument("--no-exec", action="store_true", help="show generated SQL but do not run it")
+    vt = sub.add_parser("vision-test", help="run ONLY the diagram step on a PDF and print what the vision model says (nothing is stored)")
+    vt.add_argument("pdf")
+    vt.add_argument("--limit", type=int, default=1, help="how many figures to try")
     h = sub.add_parser("history", help="list recent questions and how they were answered")
     h.add_argument("-n", type=int, default=15)
     tr = sub.add_parser("trace", help="show the full decision trail (retrieval, prompts, model thinking, SQL tries) of one question")
@@ -70,6 +73,28 @@ def main():
             print(f"--- {h['filename']} p.{h['page']} [{h['kind']}] score={h['score']:.4f}\n{h['content'][:400]}\n")
     elif args.cmd == "ask":
         from .answer import ask; _print_answer(ask(args.question, args.k, execute=not args.no_exec))
+    elif args.cmd == "vision-test":
+        import io
+        from PIL import Image
+        from .pdf_parser import parse_pdf
+        from .quality import looks_degenerate
+        from .vision import describe_raw, VisionError
+        _, pages, figures = parse_pdf(args.pdf, vision=True)
+        if not figures:
+            sys.exit("no figures found in this PDF")
+        page_text = {n: "\n".join(lines) for n, lines in pages}
+        pathlib.Path("page_images").mkdir(exist_ok=True)
+        for i, fig in enumerate(figures[:args.limit], start=1):
+            path = f"page_images/vision_test_p{fig.page}_{i}.png"
+            pathlib.Path(path).write_bytes(fig.png)
+            w, h = Image.open(io.BytesIO(fig.png)).size
+            print(f"--- page {fig.page}, {fig.source} figure, {w}x{h}px, {len(fig.png) // 1024} KB, saved to {path}")
+            try:
+                out, info = describe_raw(fig.png, page_text[fig.page] if fig.source == "vector" else "")
+            except VisionError as e:
+                print(f"vision model error: {e}")
+                continue
+            print(f"call: {info}\ndegenerate (repeated lines): {looks_degenerate(out)}\n\n{out[:3500]}\n")
     elif args.cmd == "history":
         from .trace import list_traces
         for r in list_traces(args.n):

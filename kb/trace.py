@@ -129,7 +129,8 @@ def format_trace(t: dict, full: bool = False) -> str:
             for h in ev["hits"]:
                 where = f"table {h['table']}" if h["kind"] == "schema" else f"{h['source']} p.{h['page']}"
                 out.append(f"            - {h['kind']:<7} {where:<34} score={h['score']}"
-                           f"{'  (added via foreign key)' if h['expanded'] else ''}")
+                           f"{'  (added via foreign key)' if h['expanded'] else ''}"
+                           f"{'  (table named in the question)' if h.get('named') else ''}")
         elif stage == "llm_call":
             u = ev.get("usage") or {}
             out.append(f"{at} LLM CALL  purpose={ev['purpose']}  model={ev['model']}  {ev['ms']} ms  "

@@ -30,7 +30,8 @@ class Rendering(unittest.TestCase):
         tr = Trace("how many films?", {"llm_model": "m"})
         tr.event("retrieve", question="q", k=2, ms=5, hits=[
             {"id": 1, "kind": "schema", "source": "mysql://sakila", "page": 0, "table": "film", "score": 0.03, "expanded": False, "preview": "x"},
-            {"id": 2, "kind": "schema", "source": "mysql://sakila", "page": 0, "table": "film_category", "score": 0.0, "expanded": True, "preview": "y"}])
+            {"id": 2, "kind": "schema", "source": "mysql://sakila", "page": 0, "table": "film_category", "score": 0.0, "expanded": True, "preview": "y"},
+            {"id": 3, "kind": "schema", "source": "mysql://sakila", "page": 0, "table": "rental", "score": 0.0, "expanded": False, "named": True, "preview": "z"}])
         tr.event("llm_call", purpose="route", model="m", messages=[{"role": "user", "content": "hi"}], reply_raw="r",
                  reasoning="because", reasoning_source="message.reasoning", finish_reason="length", usage=None, ms=3)
         tr.event("llm_call", purpose="summarise", model="m", messages=[{"role": "user", "content": "hi"}], reply_raw="r",
@@ -41,7 +42,7 @@ class Rendering(unittest.TestCase):
         self.assertTrue(all("t_ms" in e for e in tr.events))
         out = format_trace({"id": 1, "created_at": "2026-11-14 10:00:00", "question": "q", "outcome": "answered_with_sql",
                             "total_ms": 9, "meta": {}, "events": tr.events, "final_sql": "SELECT 1", "answer": "one", "error": None})
-        for needle in ["added via foreign key", "THINKING (from message.reasoning)", "none returned", "SQL TRY #1",
+        for needle in ["added via foreign key", "table named in the question", "THINKING (from message.reasoning)", "none returned", "SQL TRY #1",
                        "finish_reason=length", "route=sql"]:
             self.assertIn(needle, out)
 

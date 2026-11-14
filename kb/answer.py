@@ -86,7 +86,7 @@ class Answer:
 def _hit_summary(h: dict) -> dict:
     return {"id": h["id"], "kind": h["kind"], "source": h["filename"], "page": h["page"],
             "table": h["metadata"].get("table"), "score": round(float(h["score"]), 4),
-            "expanded": bool(h.get("expanded")), "preview": h["content"][:160].replace("\n", " ")}
+            "expanded": bool(h.get("expanded")), "named": bool(h.get("named")), "preview": h["content"][:160].replace("\n", " ")}
 
 
 def _run(a: Answer, tr: Trace, k: int, execute: bool) -> str:

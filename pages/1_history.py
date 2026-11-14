@@ -34,12 +34,12 @@ for ev in t["events"]:
     stage, at = ev["stage"], f"{ev['t_ms']} ms"
     if stage == "retrieve":
         st.markdown(f"### 1 · Retrieve  _(at {at}, took {ev.get('ms', '?')} ms)_")
-        st.caption("Hybrid search in pgvector (meaning + keywords). Rows marked *added via foreign key* were not found by the "
-                   "search: they were pulled in because they are joined to a table that was.")
+        st.caption("Hybrid search in pgvector (meaning + keywords). Rows in the *added because* column were not found by the "
+                   "search: the question named the table, or it is joined by foreign key to a table that was found.")
         df = pd.DataFrame(ev["hits"])
         df["where"] = df.apply(lambda h: f"table {h['table']}" if h["kind"] == "schema" else f"{h['source']} p.{h['page']}", axis=1)
-        df["via FK"] = df["expanded"].map({True: "yes", False: ""})
-        st.dataframe(df[["kind", "where", "score", "via FK", "preview"]], use_container_width=True, hide_index=True)
+        df["added because"] = df.apply(lambda h: "named in the question" if h.get("named") else ("foreign key" if h["expanded"] else ""), axis=1)
+        st.dataframe(df[["kind", "where", "score", "added because", "preview"]], use_container_width=True, hide_index=True)
     elif stage == "llm_call":
         u = ev.get("usage") or {}
         st.markdown(f"### LLM call · {ev['purpose']}  _(at {at}, {ev['ms']} ms, finish={ev['finish_reason']}, tokens={u or 'n/a'})_")

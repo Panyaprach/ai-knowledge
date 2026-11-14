@@ -42,7 +42,8 @@ def ingest_pdf(path: str, vision: bool = True, force: bool = False) -> None:
     for i, fig in enumerate(figures, start=1):
         print(f"  p.{fig.page}: {fig.source} figure #{i} -> vision model")
         try:
-            desc = describe_diagram(fig.png, page_text.get(fig.page, ""))
+            hint = page_text.get(fig.page, "") if fig.source == "vector" else ""   # raster figures: their text is not in the text layer
+            desc = describe_diagram(fig.png, hint)
         except VisionError as e:
             print(f"\n  !! Vision model failed, skipping diagrams (text is still ingested):\n     {e}\n"
                   "     Fix VLM_MODEL / VLM_API_KEY in .env, check with `python -m kb status --deep`, then re-run\n"
