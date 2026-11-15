@@ -2,6 +2,10 @@
 import pandas as pd
 import streamlit as st
 
+from kb.config import setup_logging
+
+setup_logging()  # idempotent
+
 from kb.trace import get_trace, list_traces
 
 st.set_page_config(page_title="Decision trail", page_icon="🔎", layout="wide")

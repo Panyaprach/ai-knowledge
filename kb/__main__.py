@@ -1,4 +1,6 @@
-import argparse, pathlib, sys
+import argparse, logging, pathlib, sys, time
+
+log = logging.getLogger("kb.setup")
 
 
 def _print_answer(a):
@@ -12,6 +14,10 @@ def _print_answer(a):
         if len(a.rows) > 20 or a.truncated:
             print(f"... ({len(a.rows)} rows kept)")
     print("\nSteps: " + " -> ".join(a.steps))
+    if a.usage and a.usage.get("calls"):
+        u = a.usage
+        print(f"Tokens: {u['prompt']:,} prompt + {u['completion']:,} completion in {u['calls']} model call(s)"
+              + (f" (of which {u['reasoning']:,} reasoning)" if u.get("reasoning") else ""))
     if a.trace_id:
         print(f"Decision trail saved as trace #{a.trace_id}:  python -m kb trace {a.trace_id}")
     print("Sources:")
@@ -38,6 +44,8 @@ def main():
     a = sub.add_parser("ask", help="retrieve, answer or write+run SQL")
     a.add_argument("question"); a.add_argument("-k", type=int, default=8)
     a.add_argument("--no-exec", action="store_true", help="show generated SQL but do not run it")
+    u = sub.add_parser("usage", help="token usage per day / model / purpose, with warnings about truncation")
+    u.add_argument("--days", type=int, default=7)
     vt = sub.add_parser("vision-test", help="run ONLY the diagram step on a PDF and print what the vision model says (nothing is stored)")
     vt.add_argument("pdf")
     vt.add_argument("--limit", type=int, default=1, help="how many figures to try")
@@ -49,20 +57,27 @@ def main():
     e = sub.add_parser("eval", help="retrieval hit-rate on eval/questions.json (no LLM)")
     e.add_argument("-k", type=int, default=8)
     args = ap.parse_args()
+    from .config import setup_logging
+    setup_logging()                      # diagnostics go to stderr via logging; results below use print (stdout)
 
     if args.cmd == "init":
         from .db import init_db; init_db(); print("pgvector ready")
     elif args.cmd == "status":
         from .status import run; sys.exit(run(args.deep))
     elif args.cmd == "setup":
+        from .config import MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE
         from .db import init_db
         from .mysql_schema import wait_for_mysql
         from .ingest import sync_schema, ingest_path
-        init_db(); print("pgvector ready")
-        wait_for_mysql(); sync_schema()
+        from .usage import run_summary
+        t0 = time.perf_counter()
+        init_db(); log.info("pgvector ready (tables: documents, chunks, query_log, llm_usage)")
+        wait_for_mysql(); log.info("connected to MySQL %s:%s/%s", MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE)
+        sync_schema()
         if pathlib.Path("pdfs").exists():
             ingest_path("pdfs", vision=not args.no_vision)
-        print("\nDone. Try:  python -m kb ask \"Which 5 customers paid the most?\"   or   streamlit run app.py")
+        log.info("done in %.0fs | %s", time.perf_counter() - t0, run_summary())
+        print("\nNext:  python -m kb status   |   python -m kb ask \"Which 5 customers paid the most?\"   |   streamlit run app.py")
     elif args.cmd == "sync-schema":
         from .ingest import sync_schema; sync_schema(force=True)
     elif args.cmd == "ingest":
@@ -95,6 +110,9 @@ def main():
                 print(f"vision model error: {e}")
                 continue
             print(f"call: {info}\ndegenerate (repeated lines): {looks_degenerate(out)}\n\n{out[:3500]}\n")
+    elif args.cmd == "usage":
+        from .usage import usage_rows, recent_flags, format_summary
+        print(format_summary(usage_rows(args.days), recent_flags(), args.days))
     elif args.cmd == "history":
         from .trace import list_traces
         for r in list_traces(args.n):

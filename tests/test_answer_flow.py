@@ -58,7 +58,8 @@ class Flow(unittest.TestCase):
         call = self.saved["events"][1]
         self.assertEqual(call["reasoning"], "the question is about design")
         self.assertEqual(call["reasoning_source"], "message.reasoning_content")
-        self.assertEqual(call["usage"], {"prompt": 10, "completion": 5})
+        self.assertEqual(call["usage"], {"prompt": 10, "completion": 5, "reasoning": None, "estimated": False})
+        self.assertEqual(a.usage, {"calls": 1, "prompt": 10, "completion": 5, "reasoning": 0})
 
     def test_sql_route_with_guard_rejection_then_repair(self):
         self.fake_llm(reply("<think>count rentals</think>\n```sql\nSELECT * FROM rentals\n```"),
@@ -83,6 +84,7 @@ class Flow(unittest.TestCase):
         self.assertEqual(self.saved["events"][1]["reasoning"], "count rentals")        # <think> tags captured
         self.assertEqual(a.sql, "SELECT COUNT(*) AS n FROM rental LIMIT 101")           # shows what actually ran
         self.assertEqual(a.text, "There are 16044 rentals.")
+        self.assertEqual(a.usage["calls"], 3)                                            # route + repair + summarise
 
     def test_model_failure_is_logged_and_reraised(self):
         client = MagicMock()

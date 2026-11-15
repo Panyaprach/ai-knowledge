@@ -65,6 +65,50 @@ CLI equivalents: `python -m kb ask "..."`, `python -m kb search "..."`, `python 
 Look at `chunks` (columns `kind`, `page`, `content`, `metadata`, `image_path`) and `documents` in pgvector. The `embedding`
 column is a long vector, so select the other columns instead of `*`. Adminer is bound to localhost only; don't expose it.
 
+## Ollama context (read this if you run models locally)
+Ollama's default context window is 4096 tokens, and the OpenAI-compatible `/v1` endpoint this project uses cannot change it per
+request, so a longer prompt is silently cut instead of raising an error. Two places in this project exceed 4096 tokens: the
+**diagram image** (about 2,000 tokens) plus prompt and reply, and the **answer prompt** (8+ retrieved chunks plus joined tables).
+Symptoms: a diagram description that repeats the same lines, or answers that ignore the instructions. Fix, either way:
+- Server-wide: set `OLLAMA_CONTEXT_LENGTH=16384` for the Ollama server and restart it (done for you in the compose `ollama` service).
+- Per model (works on any install): create a variant and use its name in `.env`:
+```
+# Modelfile.vision                     # Modelfile.llm
+FROM qwen2.5vl:7b                      FROM qwen2.5-coder:7b
+PARAMETER num_ctx 8192                 PARAMETER num_ctx 16384
+```
+`ollama create qwen2.5vl:7b-8k -f Modelfile.vision`, then `VLM_MODEL=qwen2.5vl:7b-8k` (same idea for `LLM_MODEL`).
+Check with `ollama ps`: the CONTEXT column should show your value, not 4096. Larger windows use more memory.
+`python -m kb vision-test pdfs/sakila-en_a4.pdf` runs only the diagram step and prints the image size, token counts and output, so
+you can iterate quickly. If a trace shows `prompt` tokens stuck near 4096 while your prompt is longer, the window is truncating it.
+
+## Setup log and token usage
+**Setup log.** Progress and warnings use Python's standard `logging` (to stderr); results such as answers and tables are printed
+to stdout. `python -m kb setup` prints compact timestamped lines, for example (numbers are an illustration):
+```
+[12:01:03] setup    pgvector ready (tables: documents, chunks, query_log, llm_usage)
+[12:01:04] setup    connected to MySQL 127.0.0.1:3307/sakila
+[12:01:06] ingest   MySQL schema: 23 tables/views read in 0.4s
+[12:01:07] ingest   sakila-en_a4.pdf: 24 pages -> 62 text chunks, 1 figure(s) (0.6s)
+[12:01:08] ingest   p.5 embedded figure 1443x1113px -> qwen2.5vl:7b (can take a minute on a local model)
+[12:01:41] ingest   p.5 ok: 31 lines, tokens 2,310 in / 640 out, 33.0s, finish=stop
+[12:01:44] setup    done in 52s | tokens this run -> vision: 1 call(s), 2,310 in / 640 out; embeddings: local, 0 API tokens
+```
+Settings: `KB_LOG_LEVEL=debug|info|warning|quiet` (debug adds a preview of the vision model's output) and `KB_LOG_FILE=kb.log`
+to also write a rotating log file. Only the `kb` loggers are configured; httpx/openai logging is left alone.
+
+**Token usage.** Every model call is stored in the `llm_usage` table: the vision call during ingest and each text-model call per
+question (route / repair / summarise). Embeddings are local, so they cost no API tokens.
+- `python -m kb usage --days 7`: tokens per day, model and purpose, plus warnings.
+- The **Usage** page in Streamlit: totals, a per-day chart and the same table.
+- `python -m kb ask "..."` ends with a `Tokens:` line for that question; the History page shows it in each trace.
+- Counts are what the provider reports. If a provider reports none, a rough estimate (about 4 characters per token) is stored and
+  marked estimated (`~` in the table).
+- Warnings are hints, not proof: reply cut off by `max_tokens`, prompt tokens sitting right at a context size (2048/4096/8192/...), or
+  the provider counting far fewer prompt tokens than the prompt contains. These are the signs of a local model silently truncating.
+- Free hosted tiers usually limit **calls per day**, so watch the `calls` column, not only tokens.
+- `USAGE_ENABLED=0` turns recording off.
+
 ## Observe it: the decision trail
 Every question is saved in the `query_log` table (one row, ordered `events`) and can be read three ways:
 - **Streamlit:** the **History** page in the sidebar (pick a question; each step is laid out in order).
@@ -75,7 +119,7 @@ What a trail contains, in the order things happen:
 
 | Stage | What it tells you |
 |---|---|
-| `retrieve` | which chunks came back from pgvector (text / diagram / schema), their score, and which were *added via foreign key* instead of found by search |
+| `retrieve` | which chunks came back from pgvector (text / diagram / schema), their score, and which were added without being found by search: because the question *named the table*, or because it is joined by *foreign key* to a found table |
 | `llm_call` | the exact prompt, the raw reply, **the model's thinking if the provider returned any**, `finish_reason`, token counts, time. Purposes: *route* (docs answer or SQL?), *repair* (after a failed query), *summarise* (turn rows into a sentence) |
 | `decision` | the route taken and why: docs (reply had no ```sql block) or SQL |
 | `sql_attempt` | each try: **rejected by the SQL guard** / **MySQL error** / **ok**, the SQL in, the SQL that actually ran (LIMIT added), a 5-row preview. A failed try's error is what the model sees when it repairs |

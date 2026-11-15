@@ -1,3 +1,5 @@
+import logging
+import logging.handlers
 import os
 
 try:
@@ -52,3 +54,41 @@ MAX_ROWS = _int("MAX_ROWS", 100)
 # Decision-trail log (see kb/trace.py). Prompts, retrieved text and result rows are stored, so keep the DB local.
 TRACE_ENABLED = _clean("TRACE_ENABLED", "1").lower() not in ("0", "false", "no", "")
 TRACE_MAX_CHARS = _int("TRACE_MAX_CHARS", 30000)
+USAGE_ENABLED = _clean("USAGE_ENABLED", "1").lower() not in ("0", "false", "no", "")
+
+
+# ---------- logging ----------
+class _Compact(logging.Formatter):
+    """[12:01:07] vision   message      (warnings and errors get a level word: [12:01:07] WARNING vision   message)"""
+    def __init__(self):
+        super().__init__("[%(asctime)s] %(lvl)s%(name)-8s %(message)s", "%H:%M:%S")
+
+    def format(self, record):
+        r = logging.makeLogRecord(record.__dict__)
+        r.name = r.name.removeprefix("kb.")
+        r.lvl = r.levelname + " " if r.levelno >= logging.WARNING else ""
+        return super().format(r)
+
+
+def setup_logging(level: str | None = None) -> None:
+    """Configure the 'kb' logger once (safe to call again). Called by the CLI and the Streamlit pages; library modules
+    only do `log = logging.getLogger(__name__)`. KB_LOG_LEVEL: debug | info (default) | warning | quiet (= warning).
+    KB_LOG_FILE=path also writes a rotating log file. Third-party libraries (httpx, openai) are left alone."""
+    name = (level or os.getenv("KB_LOG_LEVEL", "info")).split("#", 1)[0].strip().upper()
+    lvl = logging.WARNING if name == "QUIET" else getattr(logging, name, logging.INFO)
+    if not isinstance(lvl, int):
+        lvl = logging.INFO
+    root = logging.getLogger("kb")
+    root.setLevel(lvl)
+    root.propagate = False
+    if not any(getattr(h, "_kb", False) for h in root.handlers):
+        console = logging.StreamHandler()                      # stderr, so stdout stays clean for program output
+        console.setFormatter(_Compact())
+        console._kb = True
+        root.addHandler(console)
+        path = os.getenv("KB_LOG_FILE", "").split("#", 1)[0].strip()
+        if path:
+            f = logging.handlers.RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+            f.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+            f._kb = True
+            root.addHandler(f)

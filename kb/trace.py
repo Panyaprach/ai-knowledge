@@ -8,7 +8,7 @@ One row per question in `query_log`. Its `events` column is the ordered trail:
   error        an exception, if one stopped the run
 This is deliberately not distributed tracing: no extra service, just a table you can read in Adminer or the History page.
 """
-import re, time
+import logging, re, time
 
 from .config import TRACE_ENABLED, TRACE_MAX_CHARS
 
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS query_log (
 CREATE INDEX IF NOT EXISTS query_log_created ON query_log (created_at DESC);
 """
 
+log = logging.getLogger(__name__)
 THINK_RE = re.compile(r"(?s)<think>(.*?)</think>")
 REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking")  # names used by different providers
 _ensured = False
@@ -93,7 +94,7 @@ class Trace:
                     (self.question, outcome, self.total_ms(), cap(answer), cap(sql), cap(error),
                      Jsonb(self.meta), Jsonb(self.events))).fetchone()[0]
         except Exception as e:
-            print(f"[trace] could not save decision trail: {type(e).__name__}: {e}")
+            log.warning("could not save decision trail: %s: %s", type(e).__name__, e)
             return None
 
 

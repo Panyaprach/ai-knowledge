@@ -10,6 +10,7 @@ from .config import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, RETRIEVE_K, MAX_ROWS, 
 from .retrieve import retrieve
 from .sqlguard import extract_sql, UnsafeSQL
 from .trace import Trace, cap, extract_reasoning, strip_think
+from .usage import record, extract_usage, est_tokens, sum_events
 
 SYSTEM = """You are a data assistant for a MySQL 8 database. Context items are labelled:
 [doc FILE p.N]      documentation text (business rules, meaning of columns, design notes)
@@ -33,29 +34,21 @@ def _client() -> OpenAI:
     return OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY, timeout=300)
 
 
-def _usage(r) -> dict | None:
-    u = getattr(r, "usage", None)
-    if not u:
-        return None
-    d = {"prompt": getattr(u, "prompt_tokens", None), "completion": getattr(u, "completion_tokens", None)}
-    details = getattr(u, "completion_tokens_details", None)
-    rt = getattr(details, "reasoning_tokens", None) if details else None
-    if rt is not None:
-        d["reasoning"] = rt
-    return d
-
-
 def _chat(messages, max_tokens: int = 900, tr: Trace | None = None, purpose: str = "") -> str:
     t0 = time.perf_counter()
     r = _client().chat.completions.create(model=LLM_MODEL, temperature=0, max_tokens=max_tokens, messages=messages)
+    ms = round((time.perf_counter() - t0) * 1000)
     choice = r.choices[0]
     raw = choice.message.content or ""
     thinking, source = extract_reasoning(choice.message)   # whatever the provider returns; often nothing
+    est_prompt = sum(len(m["content"]) for m in messages) // 4
+    usage = record("llm", purpose.split(":")[0].split(" ")[0], LLM_MODEL, urlparse(LLM_BASE_URL).netloc,
+                   extract_usage(r), est_prompt, est_tokens(raw), ms, choice.finish_reason)
     if tr is not None:
         tr.event("llm_call", purpose=purpose, model=LLM_MODEL,
                  messages=[{"role": m["role"], "content": cap(m["content"])} for m in messages],
                  reply_raw=cap(raw), reasoning=cap(thinking), reasoning_source=source,
-                 finish_reason=choice.finish_reason, usage=_usage(r), ms=round((time.perf_counter() - t0) * 1000))
+                 finish_reason=choice.finish_reason, usage=usage, ms=ms)
     return strip_think(raw)
 
 
@@ -81,6 +74,7 @@ class Answer:
     hits: list = field(default_factory=list)
     steps: list = field(default_factory=list)
     trace_id: int | None = None
+    usage: dict = field(default_factory=dict)   # tokens for this question: calls / prompt / completion / reasoning
 
 
 def _hit_summary(h: dict) -> dict:
@@ -161,7 +155,9 @@ def ask(question: str, k: int = RETRIEVE_K, execute: bool = True) -> Answer:
         outcome = _run(a, tr, k, execute)
     except Exception as e:  # keep the evidence of what happened, then let the caller see the error
         tr.event("error", error=f"{type(e).__name__}: {e}")
+        a.usage = tr.meta["tokens"] = sum_events(tr.events)
         a.trace_id = tr.save("error", sql=a.sql, error=f"{type(e).__name__}: {e}")
         raise
+    a.usage = tr.meta["tokens"] = sum_events(tr.events)
     a.trace_id = tr.save(outcome, answer=a.text, sql=a.sql, error=a.error)
     return a

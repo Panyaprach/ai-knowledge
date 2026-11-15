@@ -2,6 +2,10 @@
 import pandas as pd
 import streamlit as st
 
+from kb.config import setup_logging
+
+setup_logging()
+
 st.set_page_config(page_title="Sakila Knowledge Base", page_icon="🎬", layout="wide")
 st.title("🎬 Sakila knowledge base")
 st.caption("PDF text + schema diagram + live MySQL schema → pgvector → RAG answers & read-only text-to-SQL on MySQL")
@@ -51,6 +55,8 @@ if st.button("Ask", type="primary") and q.strip():
             st.caption("Result truncated.")
     with st.expander("How it was answered"):
         st.write(" → ".join(a.steps))
+        if a.usage.get("calls"):
+            st.caption(f"Tokens: {a.usage['prompt']:,} prompt + {a.usage['completion']:,} completion in {a.usage['calls']} model call(s)")
         if a.trace_id:
             st.caption(f"Full decision trail saved as trace #{a.trace_id}: open the **History** page in the sidebar.")
     st.subheader("Sources")

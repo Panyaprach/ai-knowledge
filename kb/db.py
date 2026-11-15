@@ -2,6 +2,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 from .config import DATABASE_URL, EMBED_DIM
 from .trace import QUERY_LOG_DDL  # defined next to the code that writes it
+from .usage import USAGE_DDL
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS documents (
@@ -34,6 +35,7 @@ def init_db():
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.execute(SCHEMA)
         conn.execute(QUERY_LOG_DDL)
+        conn.execute(USAGE_DDL)
 
 
 def connect():
