@@ -1,23 +1,21 @@
-"""Token usage: every model call (vision at ingest, text LLM per question) is recorded in `llm_usage`.
-Local embeddings use no API tokens, so they are not counted. Provider-reported counts are used when present;
-otherwise a rough estimate (~4 characters per token) is stored and marked estimated."""
+"""Records token usage of every model call in the llm_usage table."""
 import logging
 from collections import defaultdict
 
-from .config import USAGE_ENABLED
+from .config import EMBED_BASE_URL, USAGE_ENABLED
 
 USAGE_DDL = """
 CREATE TABLE IF NOT EXISTS llm_usage (
     id                BIGSERIAL PRIMARY KEY,
     ts                TIMESTAMPTZ NOT NULL DEFAULT now(),
-    kind              TEXT NOT NULL,          -- 'vision' | 'llm'
-    purpose           TEXT NOT NULL,          -- diagram | route | repair | summarise
+    kind              TEXT NOT NULL,
+    purpose           TEXT NOT NULL,
     model             TEXT NOT NULL,
     host              TEXT,
     prompt_tokens     INT,
     completion_tokens INT,
     reasoning_tokens  INT,
-    est_prompt_tokens INT,                    -- our own rough estimate of the text prompt, used to spot truncation
+    est_prompt_tokens INT,
     estimated         BOOLEAN NOT NULL DEFAULT FALSE,
     finish_reason     TEXT,
     ms                INT
@@ -27,12 +25,11 @@ CREATE INDEX IF NOT EXISTS llm_usage_ts ON llm_usage (ts DESC);
 
 log = logging.getLogger(__name__)
 CONTEXT_CAPS = (2048, 4096, 8192, 16384, 32768)
-RUN = defaultdict(lambda: {"calls": 0, "prompt": 0, "completion": 0})   # this process only (shown at the end of setup)
+RUN = defaultdict(lambda: {"calls": 0, "prompt": 0, "completion": 0})
 _ensured = False
 _warned = False
 
 
-# ---------- pure helpers ----------
 def est_tokens(text: str) -> int:
     return max(1, len(text or "") // 4)
 
@@ -71,7 +68,7 @@ def flags(prompt_tokens, est_prompt_tokens, finish_reason, kind) -> list[str]:
     out = []
     if finish_reason == "length":
         out.append("reply was cut off by max_tokens")
-    if prompt_tokens:
+    if prompt_tokens and kind != "embed":
         for cap in CONTEXT_CAPS:
             if cap - 64 <= prompt_tokens <= cap:
                 out.append(f"prompt tokens are right at {cap}: the context window may be truncating the prompt")
@@ -84,7 +81,7 @@ def run_summary() -> str:
     if not RUN:
         return "no model calls in this run"
     parts = [f"{k}: {v['calls']} call(s), {v['prompt']:,} in / {v['completion']:,} out" for k, v in RUN.items()]
-    return "tokens this run -> " + "; ".join(parts) + "; embeddings: local, 0 API tokens"
+    return "tokens this run -> " + "; ".join(parts) + "; embeddings: " + ("counted above" if EMBED_BASE_URL else "local, 0 API tokens")
 
 
 def format_summary(rows: list[dict], flagged: list[dict], days: int) -> str:
@@ -97,8 +94,7 @@ def format_summary(rows: list[dict], flagged: list[dict], days: int) -> str:
                    f"{r['prompt']:>10,}{r['completion']:>12,}{r['reasoning']:>10,}{r['avg_ms'] / 1000:>7.1f}"
                    + (" ~" if r["n_estimated"] else ""))
     out += ["", f"Total: {sum(r['calls'] for r in rows)} calls, {sum(r['prompt'] for r in rows):,} prompt + "
-                f"{sum(r['completion'] for r in rows):,} completion tokens",
-            "Embeddings: local model, 0 API tokens."]
+                f"{sum(r['completion'] for r in rows):,} completion tokens"]
     if flagged:
         out += ["", f"Warnings ({len(flagged)} recent call(s)); most recent first:"]
         for f in flagged[:8]:
@@ -106,7 +102,6 @@ def format_summary(rows: list[dict], flagged: list[dict], days: int) -> str:
     return "\n".join(out)
 
 
-# ---------- storage ----------
 def record(kind: str, purpose: str, model: str, host: str, usage: dict | None, est_prompt: int,
            est_completion: int, ms: int, finish_reason: str | None) -> dict:
     """Store one model call. Never raises: logging must not break the app. Returns the normalised usage dict."""

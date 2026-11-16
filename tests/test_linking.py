@@ -15,7 +15,7 @@ class Linking(unittest.TestCase):
         self.assertEqual(find_named_tables("explain film_actors please", TABLES), ["film_actor"])
 
     def test_no_false_hits_inside_other_words(self):
-        self.assertEqual(find_named_tables("restore the inventories", TABLES), [])   # 'inventories' is not 'inventory'
+        self.assertEqual(find_named_tables("restore the inventories", TABLES), [])
         self.assertEqual(find_named_tables("filmography and storefront", TABLES), [])
 
 

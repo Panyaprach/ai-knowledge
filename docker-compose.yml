@@ -1,6 +1,3 @@
-# Two databases with two different jobs:
-#   mysql    = the "business" database (Sakila DVD-rental data) that questions are answered FROM
-#   pgvector = the vector DB that stores the knowledge base (PDF text, diagram descriptions, schema cards)
 services:
   pgvector:
     image: pgvector/pgvector:pg16
@@ -16,19 +13,17 @@ services:
       retries: 20
 
   mysql:
-    image: sakiladb/mysql:8        # community image with Sakila schema + data pre-loaded
-    ports: ["3307:3306"]           # 3307 on the host so it never clashes with a local MySQL
-    # user: sakila / password: p_ssW0rd / database: sakila   (see .env.example)
-    # Prefer the official files? use docker-compose.official-mysql.yml (see README)
+    image: sakiladb/mysql:8
+    ports: ["3307:3306"]
 
-  adminer:                         # web UI to browse both databases: http://localhost:8080
+  adminer:
     image: adminer
-    ports: ["127.0.0.1:8080:8080"]  # bound to localhost only; never expose this port publicly
+    ports: ["127.0.0.1:8080:8080"]
     environment:
       ADMINER_DEFAULT_SERVER: pgvector
     depends_on: [pgvector, mysql]
 
-  ollama:                          # optional, 100% free local models:  docker compose --profile ollama up -d
+  ollama:
     image: ollama/ollama
     profiles: ["ollama"]
     environment:

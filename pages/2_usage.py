@@ -4,14 +4,14 @@ import streamlit as st
 
 from kb.config import setup_logging
 
-setup_logging()  # idempotent
+setup_logging()
 
 from kb.usage import recent_flags, usage_rows
 
 st.set_page_config(page_title="Token usage", page_icon="🔢", layout="wide")
 st.title("🔢 Token usage")
 st.caption("Every model call is counted: the vision model during ingest, the text model for each question. "
-           "Embeddings run locally and use no API tokens. Counts are provider-reported unless marked estimated.")
+           "Embedding calls are counted only when EMBED_BASE_URL is set. Counts are provider-reported unless marked estimated.")
 
 days = st.sidebar.slider("Days", 1, 30, 7)
 try:

@@ -3,8 +3,7 @@ import re
 
 
 def find_named_tables(question: str, table_names, limit: int = 5) -> list[str]:
-    """Tables whose name appears as a whole word in the question (plural 's'/'es' tolerated), in order of appearance.
-    'films' -> film, 'rentals' -> rental, but 'film_actor' does not also match 'film'."""
+    """Tables named in the question (plurals tolerated), in order of appearance."""
     q = question.lower()
     hits = []
     for t in table_names:

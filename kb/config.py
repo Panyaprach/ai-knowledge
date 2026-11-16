@@ -5,13 +5,12 @@ import os
 try:
     from dotenv import load_dotenv
     load_dotenv()
-except ImportError:  # keeps the pure-Python modules importable in minimal environments
+except ImportError:
     pass
 
 
 def _clean(name: str, default: str) -> str:
-    """Numeric/boolean settings only: ignore a trailing '# comment'. Some tools (e.g. the VS Code Python extension)
-    load .env themselves and keep inline comments in the value."""
+    """Parse numeric/boolean settings, ignoring a trailing '# comment'."""
     return os.getenv(name, default).split("#", 1)[0].strip()
 
 
@@ -33,6 +32,18 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "sakila")
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 EMBED_DIM = _int("EMBED_DIM", 384)
+EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "").strip()
+EMBED_API_KEY = os.getenv("EMBED_API_KEY", "").strip()
+EMBED_SEND_DIMENSIONS = _clean("EMBED_SEND_DIMENSIONS", "0").lower() in ("1", "true", "yes")
+
+
+def _prefix(name: str) -> str:
+    v = os.getenv(name, "")
+    return v[1:-1] if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'" else v
+
+
+EMBED_QUERY_PREFIX = _prefix("EMBED_QUERY_PREFIX")
+EMBED_DOC_PREFIX = _prefix("EMBED_DOC_PREFIX")
 
 VLM_BASE_URL = os.getenv("VLM_BASE_URL", "http://localhost:11434/v1")
 VLM_API_KEY = os.getenv("VLM_API_KEY", "ollama")
@@ -40,7 +51,7 @@ VLM_MODEL = os.getenv("VLM_MODEL", "qwen2.5vl:7b")
 VLM_DELAY_SEC = _float("VLM_DELAY_SEC", 1.0)
 VLM_TEMPERATURE = _float("VLM_TEMPERATURE", 0.0)
 VLM_MAX_TOKENS = _int("VLM_MAX_TOKENS", 1500)
-VLM_FREQUENCY_PENALTY = _float("VLM_FREQUENCY_PENALTY", 0.0)  # 0 = not sent (some providers reject it)
+VLM_FREQUENCY_PENALTY = _float("VLM_FREQUENCY_PENALTY", 0.0)
 
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
@@ -51,13 +62,11 @@ IMAGE_DIR = os.getenv("IMAGE_DIR", "page_images")
 RETRIEVE_K = _int("RETRIEVE_K", 8)
 MAX_ROWS = _int("MAX_ROWS", 100)
 
-# Decision-trail log (see kb/trace.py). Prompts, retrieved text and result rows are stored, so keep the DB local.
 TRACE_ENABLED = _clean("TRACE_ENABLED", "1").lower() not in ("0", "false", "no", "")
 TRACE_MAX_CHARS = _int("TRACE_MAX_CHARS", 30000)
 USAGE_ENABLED = _clean("USAGE_ENABLED", "1").lower() not in ("0", "false", "no", "")
 
 
-# ---------- logging ----------
 class _Compact(logging.Formatter):
     """[12:01:07] vision   message      (warnings and errors get a level word: [12:01:07] WARNING vision   message)"""
     def __init__(self):
@@ -71,9 +80,7 @@ class _Compact(logging.Formatter):
 
 
 def setup_logging(level: str | None = None) -> None:
-    """Configure the 'kb' logger once (safe to call again). Called by the CLI and the Streamlit pages; library modules
-    only do `log = logging.getLogger(__name__)`. KB_LOG_LEVEL: debug | info (default) | warning | quiet (= warning).
-    KB_LOG_FILE=path also writes a rotating log file. Third-party libraries (httpx, openai) are left alone."""
+    """Configure the 'kb' logger from KB_LOG_LEVEL and KB_LOG_FILE. Safe to call repeatedly."""
     name = (level or os.getenv("KB_LOG_LEVEL", "info")).split("#", 1)[0].strip().upper()
     lvl = logging.WARNING if name == "QUIET" else getattr(logging, name, logging.INFO)
     if not isinstance(lvl, int):
@@ -82,7 +89,7 @@ def setup_logging(level: str | None = None) -> None:
     root.setLevel(lvl)
     root.propagate = False
     if not any(getattr(h, "_kb", False) for h in root.handlers):
-        console = logging.StreamHandler()                      # stderr, so stdout stays clean for program output
+        console = logging.StreamHandler()
         console.setFormatter(_Compact())
         console._kb = True
         root.addHandler(console)

@@ -3,7 +3,7 @@ import re
 from collections import Counter
 
 HEADING = re.compile(r"^(\d+(?:\.\d+){0,3})\s+([A-Z][^\n]{2,80})$")
-DOT_LEADER = re.compile(r"\.{4,}")          # table-of-contents lines
+DOT_LEADER = re.compile(r"\.{4,}")
 SKIP_TITLE = re.compile(r"legal notices", re.I)
 
 
@@ -12,8 +12,7 @@ def _norm(line: str) -> str:
 
 
 def clean_pages(pages: list[tuple[int, list[str]]]) -> list[tuple[int, list[str]]]:
-    """Drop blank lines, TOC dot-leader lines, bare page numbers and running headers/footers
-    (any line, ignoring a leading/trailing page number, that repeats on >=40% of pages)."""
+    """Remove blank lines, TOC lines, page numbers and running headers/footers."""
     n = len(pages)
     counts: Counter = Counter()
     for _, lines in pages:

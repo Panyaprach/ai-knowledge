@@ -22,11 +22,11 @@ class SqlGuard(unittest.TestCase):
 
     def test_allows_reads(self):
         self.assertTrue(validate("SELECT 1;").upper().startswith("SELECT 1"))
-        self.ok("select c.last_update from customer c where c.first_name = 'DELETE'")  # keyword only inside a string
-        self.ok("WITH t AS (SELECT film_id FROM film) SELECT * FROM t")                 # CTE name is not a real table
+        self.ok("select c.last_update from customer c where c.first_name = 'DELETE'")
+        self.ok("WITH t AS (SELECT film_id FROM film) SELECT * FROM t")
         self.ok("SELECT title FROM film UNION SELECT name FROM category")
         self.ok("SELECT c.name, COUNT(*) FROM film_category fc JOIN category c ON c.category_id = fc.category_id GROUP BY c.name")
-        self.ok("SELECT * FROM sakila.film")                                            # own database, qualified
+        self.ok("SELECT * FROM sakila.film")
 
     def test_limit_is_added_and_capped(self):
         self.assertIn("LIMIT 100", self.ok("SELECT * FROM film", max_rows=100).upper())
@@ -57,7 +57,7 @@ class SqlGuard(unittest.TestCase):
         self.bad("SELECT * FROM other.film")
         with self.assertRaises(UnsafeSQL) as cm:
             validate("SELECT * FROM rentals", allowed_tables=TABLES, database="sakila")
-        self.assertIn("Available tables", str(cm.exception))   # message the model can use to repair its query
+        self.assertIn("Available tables", str(cm.exception))
 
 
 if __name__ == "__main__":

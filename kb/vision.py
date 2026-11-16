@@ -50,7 +50,7 @@ def describe_raw(png: bytes, hint: str = "", temperature: float | None = None):
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}]}])
     if VLM_FREQUENCY_PENALTY:
         kwargs["frequency_penalty"] = VLM_FREQUENCY_PENALTY
-    for attempt in range(5):  # free tiers rate-limit; back off and retry
+    for attempt in range(5):
         t0 = time.perf_counter()
         try:
             r = _client().chat.completions.create(**kwargs)
@@ -73,10 +73,9 @@ def describe_raw(png: bytes, hint: str = "", temperature: float | None = None):
 
 
 def describe_diagram(png: bytes, hint: str = ""):
-    """Returns (description_or_None, info). None means the figure is not a diagram. Looping/garbled output is
-    rejected (VisionError) instead of being stored."""
+    """Returns (description or None, info). Looping output raises VisionError instead of being stored."""
     info = {}
-    for temperature in (None, 0.3):          # second try: a little randomness often breaks a repetition loop
+    for temperature in (None, 0.3):
         out, info = describe_raw(png, hint, temperature)
         if not out or out.startswith("NO_DIAGRAM"):
             return None, info

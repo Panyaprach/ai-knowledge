@@ -3,7 +3,7 @@ from PIL import Image
 from psycopg.types.json import Jsonb
 from .config import IMAGE_DIR, MYSQL_DATABASE, VLM_MODEL
 from .db import connect
-from .embed import embed
+from .embed import describe_backend, embed
 from .chunking import section_chunks
 from .pdf_parser import parse_pdf
 from .vision import describe_diagram, VisionError
@@ -16,7 +16,7 @@ def _store(conn, filename: str, sha: str, pending: list[tuple]) -> None:
     """pending items: (page, kind, content, image_path, metadata). Replaces any older version of `filename`."""
     t0 = time.perf_counter()
     vecs = embed([p[2] for p in pending])
-    log.info("%d chunks embedded in %.1fs (local model, no API tokens)", len(pending), time.perf_counter() - t0)
+    log.info("%d chunks embedded in %.1fs (%s)", len(pending), time.perf_counter() - t0, describe_backend())
     t0 = time.perf_counter()
     conn.execute("DELETE FROM documents WHERE filename=%s OR sha256=%s", (filename, sha))
     doc_id = conn.execute("INSERT INTO documents(filename, sha256) VALUES (%s,%s) RETURNING id",
@@ -53,7 +53,7 @@ def ingest_pdf(path: str, vision: bool = True, force: bool = False) -> None:
     for i, fig in enumerate(figures, start=1):
         w, h = Image.open(io.BytesIO(fig.png)).size
         log.info("p.%d %s figure %dx%dpx -> %s (can take a minute on a local model)", fig.page, fig.source, w, h, VLM_MODEL)
-        hint = page_text.get(fig.page, "") if fig.source == "vector" else ""   # raster figures: text is not in the text layer
+        hint = page_text.get(fig.page, "") if fig.source == "vector" else ""
         try:
             desc, info = describe_diagram(fig.png, hint)
         except VisionError as e:

@@ -1,15 +1,4 @@
-"""Guard for LLM-written SQL, built on a real parser (sqlglot) instead of keyword matching.
-
-validate() parses the query with the MySQL dialect and then checks the syntax tree:
-  * exactly one statement, and it is a SELECT (or UNION/INTERSECT/EXCEPT of SELECTs, CTEs allowed)
-  * no write/DDL/admin nodes anywhere in the tree (INSERT, UPDATE, DELETE, DROP, ..., SELECT ... INTO, FOR UPDATE)
-  * no dangerous functions (SLEEP, BENCHMARK, LOAD_FILE, GET_LOCK, ...) and no @user / @@system variables
-  * every table is in the allow-list (the tables of the Sakila schema) and in the right database,
-    so information_schema / mysql.* are unreachable even if the DB user could read them
-  * a LIMIT is always present and capped
-The query that is returned is regenerated from the tree with comments removed, so nothing hidden in a comment
-(e.g. MySQL's executable /*! ... */ comments) can reach the server. The DB session is also forced READ ONLY.
-"""
+"""Validates LLM-written SQL with sqlglot: one read-only SELECT, allow-listed tables, capped LIMIT."""
 import re
 
 
@@ -17,7 +6,6 @@ class UnsafeSQL(ValueError):
     pass
 
 
-# Node classes that must never appear. Looked up by name so different sqlglot versions are tolerated.
 _FORBIDDEN_NODE_NAMES = [
     "Insert", "Update", "Delete", "Merge", "Drop", "Create", "Alter", "AlterTable", "TruncateTable",
     "Command", "Set", "Use", "Pragma", "Transaction", "Commit", "Rollback", "LoadData", "Into", "Lock",

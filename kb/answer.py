@@ -1,6 +1,4 @@
-"""RAG + text-to-SQL: retrieve docs/diagram/schema context from pgvector, then either answer from the
-documentation or write a SELECT, run it on MySQL (read-only), self-correct on error, and summarise.
-Every step is recorded in a decision trail (kb/trace.py)."""
+"""Answers a question from the documentation or by running guarded read-only SQL, recording every step."""
 import json, time
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -40,7 +38,7 @@ def _chat(messages, max_tokens: int = 900, tr: Trace | None = None, purpose: str
     ms = round((time.perf_counter() - t0) * 1000)
     choice = r.choices[0]
     raw = choice.message.content or ""
-    thinking, source = extract_reasoning(choice.message)   # whatever the provider returns; often nothing
+    thinking, source = extract_reasoning(choice.message)
     est_prompt = sum(len(m["content"]) for m in messages) // 4
     usage = record("llm", purpose.split(":")[0].split(" ")[0], LLM_MODEL, urlparse(LLM_BASE_URL).netloc,
                    extract_usage(r), est_prompt, est_tokens(raw), ms, choice.finish_reason)
@@ -74,7 +72,7 @@ class Answer:
     hits: list = field(default_factory=list)
     steps: list = field(default_factory=list)
     trace_id: int | None = None
-    usage: dict = field(default_factory=dict)   # tokens for this question: calls / prompt / completion / reasoning
+    usage: dict = field(default_factory=dict)
 
 
 def _hit_summary(h: dict) -> dict:
@@ -112,13 +110,13 @@ def _run(a: Answer, tr: Trace, k: int, execute: bool) -> str:
         t1 = time.perf_counter()
         sql_in = a.sql
         try:
-            a.columns, a.rows, a.truncated, a.sql = run_select(a.sql, MAX_ROWS)  # a.sql = guarded SQL that actually ran
+            a.columns, a.rows, a.truncated, a.sql = run_select(a.sql, MAX_ROWS)
             a.error = None
             tr.event("sql_attempt", attempt=attempt, sql_in=sql_in, outcome="ok", executed_sql=a.sql, error=None,
                      n_rows=len(a.rows), truncated=a.truncated, columns=a.columns, rows_preview=a.rows[:5],
                      ms=round((time.perf_counter() - t1) * 1000))
             break
-        except Exception as e:  # UnsafeSQL or MySQL error -> let the model repair it
+        except Exception as e:
             a.error = f"{type(e).__name__}: {e}"
             kind = "rejected by the SQL guard" if isinstance(e, UnsafeSQL) else "MySQL error"
             tr.event("sql_attempt", attempt=attempt, sql_in=sql_in, outcome=kind, executed_sql=None, error=a.error,
@@ -153,7 +151,7 @@ def ask(question: str, k: int = RETRIEVE_K, execute: bool = True) -> Answer:
                           "embed_model": EMBED_MODEL, "k": k, "execute": execute})
     try:
         outcome = _run(a, tr, k, execute)
-    except Exception as e:  # keep the evidence of what happened, then let the caller see the error
+    except Exception as e:
         tr.event("error", error=f"{type(e).__name__}: {e}")
         a.usage = tr.meta["tokens"] = sum_events(tr.events)
         a.trace_id = tr.save("error", sql=a.sql, error=f"{type(e).__name__}: {e}")

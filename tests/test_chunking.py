@@ -27,7 +27,7 @@ class Chunking(unittest.TestCase):
         self.assertIn("5.1.6 The customer Table", labels)
         self.assertIn("5.1.8 The film_actor Table", labels)
         film = next(c for c in ch if "film Table" in c["section"])
-        self.assertIn("1 row in set", film["text"])        # not mistaken for a heading
+        self.assertIn("1 row in set", film["text"])
         self.assertEqual(film["page"], 3)
 
     def test_extract_sql(self):

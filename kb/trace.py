@@ -1,13 +1,4 @@
-"""Decision trail: a saved, human-readable record of HOW each question was answered.
-
-One row per question in `query_log`. Its `events` column is the ordered trail:
-  retrieve     what was fetched from pgvector (kind, source, page/table, score, graph-expanded or not)
-  llm_call     the exact prompt, the raw reply, the model's THINKING if the provider returned any, finish_reason, tokens
-  decision     which route was taken (docs answer vs SQL) and why
-  sql_attempt  each SQL try: guard rejection / MySQL error / success, executed SQL, rows preview
-  error        an exception, if one stopped the run
-This is deliberately not distributed tracing: no extra service, just a table you can read in Adminer or the History page.
-"""
+"""Saves a per-question decision trail (retrieval, prompts, model thinking, SQL attempts) to query_log."""
 import logging, re, time
 
 from .config import TRACE_ENABLED, TRACE_MAX_CHARS
@@ -17,20 +8,20 @@ CREATE TABLE IF NOT EXISTS query_log (
     id         BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     question   TEXT NOT NULL,
-    outcome    TEXT NOT NULL,      -- answered_from_docs | answered_with_sql | sql_failed | sql_not_executed | error
+    outcome    TEXT NOT NULL,
     total_ms   INT,
     answer     TEXT,
     final_sql  TEXT,
     error      TEXT,
-    meta       JSONB NOT NULL DEFAULT '{}',   -- models, k, execute flag
-    events     JSONB NOT NULL DEFAULT '[]'    -- ordered decision trail: retrieve, llm_call, decision, sql_attempt, ...
+    meta       JSONB NOT NULL DEFAULT '{}',
+    events     JSONB NOT NULL DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS query_log_created ON query_log (created_at DESC);
 """
 
 log = logging.getLogger(__name__)
 THINK_RE = re.compile(r"(?s)<think>(.*?)</think>")
-REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking")  # names used by different providers
+REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking")
 _ensured = False
 
 
@@ -46,8 +37,7 @@ def strip_think(text: str) -> str:
 
 
 def extract_reasoning(message):
-    """Return (thinking_text, where_it_came_from). Many models/providers return nothing: then (None, None).
-    Sources: a separate message field (reasoning_content / reasoning / thinking) and/or <think>...</think> in the content."""
+    """Return (thinking_text, source), or (None, None) when the provider returns none."""
     parts, sources = [], []
     for name in REASONING_FIELDS:
         value = getattr(message, name, None)
@@ -98,7 +88,6 @@ class Trace:
             return None
 
 
-# ---------- reading ----------
 def list_traces(n: int = 30) -> list[dict]:
     from .db import connect
     cols = ["id", "created_at", "question", "outcome", "total_ms"]

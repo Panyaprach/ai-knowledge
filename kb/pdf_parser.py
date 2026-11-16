@@ -11,7 +11,7 @@ class Figure:
     page: int
     png: bytes
     caption: str
-    source: str  # 'embedded' | 'vector'
+    source: str
 
 
 def _render(page, rect, dpi: float) -> bytes:
@@ -29,7 +29,6 @@ def find_figures(page, page_no: int, text: str) -> list[Figure]:
     page_area = page.rect.width * page.rect.height
     found = []
 
-    # 1) embedded raster images (PNG/JPEG screenshots of diagrams): crop at native resolution
     for info in page.get_images(full=True):
         w, h = info[2], info[3]
         if w < 300 or h < 200:
@@ -41,10 +40,9 @@ def find_figures(page, page_no: int, text: str) -> list[Figure]:
         if rect.is_empty or rect.width * rect.height < 0.04 * page_area:
             continue
         native_ppi = w / (rect.width / 72)
-        dpi = min(300, max(150, native_ppi * 1.5))  # a little upscaling helps small diagram text
+        dpi = min(300, max(150, native_ppi * 1.5))
         found.append((rect.width * rect.height, rect, dpi, "embedded"))
 
-    # 2) vector-drawn diagrams: largest dense cluster of drawing paths
     try:
         drawings = page.get_drawings()
         if len(drawings) >= DIAGRAM_MIN_DRAWINGS and hasattr(page, "cluster_drawings"):

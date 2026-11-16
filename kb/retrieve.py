@@ -34,7 +34,7 @@ WHERE c.kind = 'schema' AND c.metadata->>'table' = ANY(%s)
 
 def search(question: str, k: int = 8) -> list[dict]:
     """Hybrid search: pgvector cosine + Postgres full-text, merged with Reciprocal Rank Fusion."""
-    q = embed([question])[0]
+    q = embed([question], "query")[0]
     tokens = [t for t in re.findall(r"\w+", question) if len(t) > 2]
     with connect() as conn:
         rows = conn.execute(HYBRID_SQL, {"q": q, "t": " | ".join(tokens), "k": k}).fetchall()
@@ -42,8 +42,7 @@ def search(question: str, k: int = 8) -> list[dict]:
 
 
 def schema_neighbors(hits: list[dict], limit: int = 6) -> list[dict]:
-    """Graph-style expansion: add the schema cards of tables joined (by FK) to the tables already found.
-    Tables that bridge several retrieved tables (e.g. film_category between film and category) rank first."""
+    """Add schema cards of tables joined by foreign key to the tables already found."""
     found = {h["metadata"].get("table") for h in hits if h["kind"] == "schema"} - {None}
     if not found:
         return []
@@ -58,8 +57,7 @@ def schema_neighbors(hits: list[dict], limit: int = 6) -> list[dict]:
 
 
 def named_table_cards(question: str, hits: list[dict], limit: int = 5) -> list[dict]:
-    """If the question names a table (e.g. 'the rental table'), always include that table's schema card.
-    Similarity search can rank documentation prose above the exact card, and the card is what holds the exact keys."""
+    """Always include the schema card of a table the question names."""
     with connect() as conn:
         names = [r[0] for r in conn.execute(
             "SELECT DISTINCT metadata->>'table' FROM chunks WHERE kind='schema'").fetchall() if r[0]]
@@ -73,5 +71,5 @@ def retrieve(question: str, k: int = 8, expand: bool = True) -> list[dict]:
     hits = search(question, k)
     if not expand:
         return hits
-    hits = hits + named_table_cards(question, hits)      # 1) tables the question names
-    return hits + schema_neighbors(hits)                  # 2) tables joined to them by foreign key
+    hits = hits + named_table_cards(question, hits)
+    return hits + schema_neighbors(hits)

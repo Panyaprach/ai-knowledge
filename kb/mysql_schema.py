@@ -18,7 +18,7 @@ def wait_for_mysql(timeout: int = 120) -> None:
         try:
             mysql_conn(3).close()
             return
-        except Exception as e:  # container still starting / loading data
+        except Exception as e:
             err = e
             time.sleep(3)
     raise RuntimeError(f"MySQL not reachable at {MYSQL_HOST}:{MYSQL_PORT}: {err}")
@@ -96,8 +96,7 @@ def table_names() -> frozenset:
 
 
 def run_select(sql: str, max_rows: int = MAX_ROWS):
-    """Parse-validate (sqlglot), cap LIMIT, then run in a READ ONLY session with a 10s server-side time limit.
-    Returns (columns, rows, truncated, executed_sql). One extra row is requested so truncation can be detected."""
+    """Validate, then run in a READ ONLY session. Returns (columns, rows, truncated, executed_sql)."""
     sql = validate(sql, allowed_tables=table_names(), max_rows=max_rows + 1, database=MYSQL_DATABASE)
     conn = mysql_conn()
     try:

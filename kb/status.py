@@ -28,6 +28,15 @@ def _probe(name, base, key, model, image=False):
         return False, f"{name} probe FAILED ({type(e).__name__}): {str(e)[:400]}"
 
 
+def _probe_embed():
+    try:
+        from .embed import embed
+        vectors = embed(["hello"], "query")
+        return True, f"embedding probe: ok, {vectors.shape[1]} dimensions"
+    except Exception as e:
+        return False, f"embedding probe FAILED ({type(e).__name__}): {str(e)[:400]}"
+
+
 def _endpoint(name, base, key, model):
     try:
         ids = [m.id for m in OpenAI(base_url=base, api_key=key, timeout=5).models.list().data]
@@ -64,6 +73,12 @@ def collect(deep: bool = False) -> list[tuple[bool, str]]:
         out.append(_endpoint(name, base, key, model))
         if deep:
             out.append(_probe(name, base, key, model, image=img))
+    if C.EMBED_BASE_URL:
+        out.append(_endpoint("embedding model", C.EMBED_BASE_URL, C.EMBED_API_KEY, C.EMBED_MODEL))
+    else:
+        out.append((True, f"embedding model: local {C.EMBED_MODEL}, {C.EMBED_DIM} dimensions"))
+    if deep:
+        out.append(_probe_embed())
     return out
 
 

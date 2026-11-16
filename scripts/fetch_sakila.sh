@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Downloads Oracle's Sakila SQL files and names them so they load in the right order.
 set -euo pipefail
 mkdir -p sakila-db && cd sakila-db
 curl -fsSL -o sakila-db.zip https://downloads.mysql.com/docs/sakila-db.zip

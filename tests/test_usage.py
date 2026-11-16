@@ -30,17 +30,17 @@ class Usage(unittest.TestCase):
 
     def test_flags(self):
         self.assertTrue(any("cut off" in f for f in flags(500, 500, "length", "llm")))
-        self.assertTrue(any("4096" in f for f in flags(4090, 6000, "stop", "llm")))       # sits right at a context cap
+        self.assertTrue(any("4096" in f for f in flags(4090, 6000, "stop", "llm")))
         self.assertTrue(any("fewer prompt tokens" in f for f in flags(3000, 6000, "stop", "llm")))
         self.assertEqual(flags(3000, 3100, "stop", "llm"), [])
-        self.assertEqual(flags(3000, 6000, "stop", "vision"), [])                         # image tokens: no text-only comparison
+        self.assertEqual(flags(3000, 6000, "stop", "vision"), [])
 
     def test_format_summary(self):
         rows = [{"day": "2026-11-14", "kind": "llm", "purpose": "route", "model": "qwen2.5-coder:7b", "calls": 3,
                  "prompt": 9000, "completion": 300, "reasoning": 0, "avg_ms": 8100, "n_estimated": 0}]
         out = format_summary(rows, [{"ts": "2026-11-14 10:00:00", "kind": "llm", "purpose": "route", "prompt_tokens": 4096,
                                      "flags": ["prompt tokens are right at 4096"]}], 7)
-        for needle in ["route", "9,000", "Total: 3 calls", "Embeddings: local", "Warnings"]:
+        for needle in ["route", "9,000", "Total: 3 calls", "Warnings"]:
             self.assertIn(needle, out)
         self.assertIn("No model calls", format_summary([], [], 7))
 
@@ -56,7 +56,7 @@ class Logging(unittest.TestCase):
         setup_logging("debug")
         lg = logging.getLogger("kb")
         self.assertEqual(lg.level, logging.DEBUG)
-        self.assertEqual(sum(getattr(h, "_kb", False) for h in lg.handlers), 1)   # no duplicate handlers
+        self.assertEqual(sum(getattr(h, "_kb", False) for h in lg.handlers), 1)
         setup_logging("quiet")
         self.assertEqual(lg.level, logging.WARNING)
         setup_logging("nonsense")

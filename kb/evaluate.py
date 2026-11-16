@@ -13,7 +13,7 @@ def run(path: str = "eval/questions.json", k: int = 8) -> int:
         if need and not have.get(need):
             print(f"SKIP  {it['q']}   (no '{need}' chunks stored)")
             continue
-        norm = lambda s: " ".join(s.lower().split())          # PDF text wraps lines; compare without line breaks
+        norm = lambda s: " ".join(s.lower().split())
         text = norm("\n".join(h["content"] for h in retrieve(it["q"], k, expand=True)))
         miss = [e for e in it["expect"] if norm(e) not in text]
         ran += 1

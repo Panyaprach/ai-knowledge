@@ -4,7 +4,7 @@ import streamlit as st
 
 from kb.config import setup_logging
 
-setup_logging()  # idempotent
+setup_logging()
 
 from kb.trace import get_trace, list_traces
 

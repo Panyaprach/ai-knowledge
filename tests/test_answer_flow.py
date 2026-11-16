@@ -26,7 +26,7 @@ class Flow(unittest.TestCase):
         self.patcher = patch.dict(sys.modules, {n: MagicMock() for n in HEAVY})
         self.patcher.start()
         for name in [n for n in sys.modules if n.startswith("kb.")]:
-            sys.modules.pop(name)                       # re-import kb.* against the fakes; restored in tearDown
+            sys.modules.pop(name)
         import kb.answer as answer
         import kb.mysql_schema as ms
         self.answer, self.ms = answer, ms
@@ -81,10 +81,10 @@ class Flow(unittest.TestCase):
         self.assertEqual(first["outcome"], "rejected by the SQL guard")
         self.assertIn("Available tables", first["error"])
         self.assertEqual(second["outcome"], "ok")
-        self.assertEqual(self.saved["events"][1]["reasoning"], "count rentals")        # <think> tags captured
-        self.assertEqual(a.sql, "SELECT COUNT(*) AS n FROM rental LIMIT 101")           # shows what actually ran
+        self.assertEqual(self.saved["events"][1]["reasoning"], "count rentals")
+        self.assertEqual(a.sql, "SELECT COUNT(*) AS n FROM rental LIMIT 101")
         self.assertEqual(a.text, "There are 16044 rentals.")
-        self.assertEqual(a.usage["calls"], 3)                                            # route + repair + summarise
+        self.assertEqual(a.usage["calls"], 3)
 
     def test_model_failure_is_logged_and_reraised(self):
         client = MagicMock()

@@ -1,11 +1,11 @@
 .PHONY: up setup setup-lite demo status eval test down
-up:          ## start pgvector + MySQL(Sakila)
+up:
 	docker compose up -d
-setup:       ## init pgvector, load schema cards, ingest ./pdfs (with diagram model)
+setup:
 	python -m kb setup
-setup-lite:  ## same but without any vision model (works on a weak laptop)
+setup-lite:
 	python -m kb setup --no-vision
-demo:        ## open the web UI
+demo:
 	streamlit run app.py
 status:
 	python -m kb status

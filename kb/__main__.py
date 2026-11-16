@@ -27,7 +27,16 @@ def _print_answer(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="kb", description="Sakila knowledge base: PDF + diagram + live schema in pgvector, answered with RAG and text-to-SQL")
+    ap = argparse.ArgumentParser(
+        prog="kb", formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Knowledge base over PDF documentation, schema diagrams and a live MySQL schema, stored in pgvector.\n"
+                    "Answers questions from the documentation or by writing and running read-only SQL.",
+        epilog="typical flow:\n"
+               "  python -m kb status --deep    check databases and models\n"
+               "  python -m kb setup            create tables, load the MySQL schema, ingest ./pdfs\n"
+               "  python -m kb ask \"...\"        answer a question\n"
+               "  python -m kb trace ID         show how a question was answered\n\n"
+               "run 'python -m kb <command> --help' for the options of one command.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init", help="create pgvector extension + tables")
     st = sub.add_parser("status", help="check pgvector, MySQL, vision model and LLM")
@@ -58,7 +67,7 @@ def main():
     e.add_argument("-k", type=int, default=8)
     args = ap.parse_args()
     from .config import setup_logging
-    setup_logging()                      # diagnostics go to stderr via logging; results below use print (stdout)
+    setup_logging()
 
     if args.cmd == "init":
         from .db import init_db; init_db(); print("pgvector ready")
